@@ -1,14 +1,14 @@
 # @dtp/sdk
 
-The official TypeScript SDK for the **DTP digital-twin platform**. Connect to a
-patient's digital twin through a consent grant, read their health data by body
-system, watch for new events, flag findings back onto the twin, manage your API
-keys, and reach the [HOLON clinical-knowledge API](https://www.npmjs.com/package/@holon/client)
-— all from one typed client.
+The official TypeScript SDK for the DTP digital-twin platform. With one typed
+client you can connect to a patient's digital twin through a consent grant, read
+their health data by body system, watch for new events, flag findings back onto
+the twin, manage your API keys, and reach the
+[HOLON clinical-knowledge API](https://www.npmjs.com/package/@holon/client).
 
-Works in Node.js 18+, Bun, Deno, and any modern browser or edge runtime with
-`fetch`. Ships with full type definitions; no runtime dependencies beyond the
-bundled HOLON client.
+Runs on Node.js 18+, Bun, Deno, and any modern browser or edge runtime with
+`fetch`. Fully typed, with no runtime dependencies beyond the bundled HOLON
+client.
 
 ```bash
 npm install @dtp/sdk
@@ -16,6 +16,41 @@ npm install @dtp/sdk
 # yarn add @dtp/sdk
 # bun add @dtp/sdk
 ```
+
+## Concepts
+
+New to the platform? These are the terms this SDK uses, and why each one exists.
+
+**Digital twin.** A living model of one patient's body, assembled from their
+health data and organized by body system. You never touch raw records; you read
+and write the twin.
+
+**Body system.** A physiological grouping such as `cardiovascular` or
+`respiratory`. Systems are how you slice a twin into the part you care about
+instead of pulling everything at once.
+
+**Health event.** One timestamped entry on a twin: a lab result, an observation,
+a flag you raised. The clinical fields (the measurement code, its value, its
+unit, its body system) live inside the event's `data` object rather than at the
+top level, because the platform stays agnostic about which coding system you use.
+
+**Grant, and grant token.** Consent, encoded. A patient issues a grant that
+authorizes you to reach exactly one twin, scoped to the body systems and event
+types they approved. The grant token is the signed proof of that consent, and it
+is what you pass to `dtp.twins.connect()`. No grant, no patient data.
+
+**DTP API key.** Identifies your application to the platform. A key beginning
+`dtp_live_` talks to production; `dtp_test_` talks to the sandbox. On its own a
+key never unlocks patient data. It says who you are, not what you may see.
+
+**Flag.** A finding you write back onto a twin as a new event, for example
+marking an LDL result as above target. Flagging is how your integration
+contributes back rather than only reading.
+
+**HOLON.** The clinical-knowledge service behind the platform: drug interactions,
+concept lookups across SNOMED / RxNorm / LOINC, reference ranges, and phenotype
+similarity. The SDK exposes it under `dtp.holon` so one client covers both a
+patient's data and the knowledge to interpret it.
 
 ## Quick start
 
@@ -44,30 +79,30 @@ stream.stop();
 
 ## Authentication
 
-The SDK uses two credentials, for two different things:
+The SDK uses two credentials for two different jobs:
 
 | Credential | Passed as | Needed for |
 | --- | --- | --- |
-| **DTP API key** (`dtp_live_…` / `dtp_test_…`) | `apiKey` in the constructor, sent as `X-DTP-API-Key` | every twin-core request (`twins`) |
-| **Grant token** (a signed JWT the patient issues) | `dtp.twins.connect(grantToken)` | access to a specific twin's data |
+| DTP API key (`dtp_live_…` / `dtp_test_…`) | `apiKey` in the constructor, sent as `X-DTP-API-Key` | every twin-core request (`twins`) |
+| Grant token (a signed JWT the patient issues) | `dtp.twins.connect(grantToken)` | access to a specific twin's data |
 
-An API key alone never grants access to patient data — it identifies *you*. A
-grant token, issued by the patient through their consent flow, authorizes access
-to exactly one twin, scoped to the body systems and event types they approved.
+An API key alone never reaches patient data. It identifies you. A grant token,
+issued by the patient through their consent flow, authorizes access to one twin,
+scoped to the body systems and event types they approved.
 
 Get an API key from the [developer dashboard](https://developer.ontomorph.com/dashboard/keys).
 
 Two features need extra credentials, supplied in the same constructor:
 
-- **`dtp.keys`** (manage your own API keys) is user-authed, so it needs a
+- `dtp.keys` (manage your own API keys) is user-authed, so it needs a
   `sessionToken` (a Zitadel user JWT), not just the API key.
-- **`dtp.holon`** (clinical knowledge) needs `holonApiUrl` and `holonApiKey`.
+- `dtp.holon` (clinical knowledge) needs `holonApiUrl` and `holonApiKey`.
 
 ## Configuration
 
 ```ts
 new DTP({
-  apiKey:       "dtp_live_…",  // required — X-DTP-API-Key on twin requests
+  apiKey:       "dtp_live_…",  // required, X-DTP-API-Key on twin requests
   baseUrl:      "https://api.ontomorph.com",  // twin-core (default shown)
   identityUrl:  "https://api.ontomorph.com",  // identity-consent, for dtp.keys (default shown)
   sessionToken: "<zitadel user jwt>",          // required only for dtp.keys.*
@@ -85,14 +120,14 @@ needed for the feature that uses it.
 ### `dtp.twins`
 
 `connect(grantToken)` decodes the grant locally and returns a `Twin`. It does
-not hit the network — the token is verified server-side on the first data
-request — so it is synchronous-fast and the returned `twin.grant` claims
-(`grantId`, `twinId`, `systems`, `eventTypes`) are available immediately.
+not hit the network (the token is verified server-side on the first data
+request), so it returns fast, and the `twin.grant` claims (`grantId`, `twinId`,
+`systems`, `eventTypes`) are available right away.
 
 ```ts
 const twin = await dtp.twins.connect(grantToken);
 twin.grant.twinId;  // the twin this grant authorizes
-twin.grant.systems; // e.g. ["cardiovascular"] or null for all
+twin.grant.systems; // e.g. ["cardiovascular"], or null for all
 ```
 
 ### `twin.systems`
@@ -102,9 +137,9 @@ const view = await twin.systems.get("cardiovascular");
 // SystemView: { system, twinId, events: HealthEvent[] }
 ```
 
-A `SystemView` is assembled from the twin's grant-scoped events filtered by
+A `SystemView` is built from the twin's grant-scoped events filtered by
 `event.data.system`. Clinical fields (`code`, `value`, `unit`, `system`) live
-inside each event's untyped `data` record, not at the top level.
+inside each event's `data` object, not at the top level.
 
 ### `twin.events`
 
@@ -120,15 +155,15 @@ const handle = twin.events.stream(
 handle.stop();
 ```
 
-> **How `stream` works:** twin-core exposes no grant-scoped push stream, so
-> `stream` is a **polling loop** over `list` (default every 5s, configurable via
-> `intervalMs`). It emits only events it has not seen before. For high-frequency
-> needs, poll `list` yourself on your own schedule.
+> How `stream` works: twin-core has no grant-scoped push stream, so `stream`
+> polls `list` on an interval (every 5s by default, set by `intervalMs`) and
+> emits only events it has not seen before. For high-frequency needs, poll
+> `list` yourself on your own schedule.
 
 ### `twin.flag`
 
 Write a flag event back onto the twin. Any `HealthEvent` satisfies `FlagInput`,
-so a streamed event can be forwarded directly:
+so a streamed event can be forwarded straight through:
 
 ```ts
 await twin.flag("cardiovascular", {
@@ -139,9 +174,9 @@ await twin.flag("cardiovascular", {
 });
 ```
 
-The grant must permit the flag's `eventType` (defaults to `"flag"`).
+The grant must permit the flag's `eventType`, which defaults to `"flag"`.
 
-### `dtp.keys` — manage your API keys
+### `dtp.keys` (manage your API keys)
 
 Requires `sessionToken` in the constructor.
 
@@ -153,11 +188,11 @@ const created = await dtp.keys.create({
   scopes: ["twins:read"],
   environment: "live",        // live | test
 });
-console.log(created.key);      // the raw key — shown exactly once
+console.log(created.key);      // the raw key, shown exactly once
 await dtp.keys.revoke(created.id);
 ```
 
-### `dtp.holon` — clinical knowledge
+### `dtp.holon` (clinical knowledge)
 
 Requires `holonApiUrl` and `holonApiKey`. Returns a configured
 [`@holon/client`](https://www.npmjs.com/package/@holon/client):
@@ -174,8 +209,8 @@ the full clinical-knowledge surface.
 
 ## Error handling
 
-Every failed request throws a `DTPApiError` with a machine-readable code;
-configuration mistakes throw `DTPConfigError`.
+Every failed request throws a `DTPApiError` with a machine-readable code.
+Configuration mistakes throw `DTPConfigError`.
 
 ```ts
 import { DTP, DTPApiError, DTPConfigError, DTPErrorCode } from "@dtp/sdk";
@@ -193,18 +228,19 @@ try {
 }
 ```
 
-`err.code` is one of: `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`,
+`err.code` is one of `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`,
 `VALIDATION_ERROR`, `SCOPE_DENIED`, `RATE_LIMITED`, `INTERNAL_ERROR`,
-`NETWORK_ERROR`, `TIMEOUT`. `err.details` carries `{ status, body }` — `status`
-is `0` for transport-level failures (network, timeout).
+`NETWORK_ERROR`, or `TIMEOUT`. `err.details` carries `{ status, body }`, where
+`status` is `0` for transport-level failures such as a network drop or timeout.
 
 ## Helpers
 
-The SDK exports a few pure utilities used internally, in case you want them:
+The SDK exports a few pure utilities it uses internally, in case they are useful
+to you:
 
-- `decodeGrantToken(token)` — decode grant claims without verifying (client-side only).
-- `filterBySystem(events, system)` — filter a `HealthEvent[]` by `data.system`.
-- `diffNewEvents(events, seen)` — the set difference the `stream` loop uses.
+- `decodeGrantToken(token)` reads grant claims without verifying (client-side only).
+- `filterBySystem(events, system)` filters a `HealthEvent[]` by `data.system`.
+- `diffNewEvents(events, seen)` is the set difference the `stream` loop uses.
 
 ## TypeScript
 
@@ -219,10 +255,10 @@ import type { HealthEvent, SystemView, GrantClaims } from "@dtp/sdk";
 
 ## Related packages
 
-- [`@holon/client`](https://www.npmjs.com/package/@holon/client) — the HOLON clinical-knowledge client, re-exported here as `dtp.holon`.
-- [`@holon/types`](https://www.npmjs.com/package/@holon/types) — shared HOLON types, enums, and error classes.
+- [`@holon/client`](https://www.npmjs.com/package/@holon/client): the HOLON clinical-knowledge client, re-exported here as `dtp.holon`.
+- [`@holon/types`](https://www.npmjs.com/package/@holon/types): shared HOLON types, enums, and error classes.
 
-## Documentation & support
+## Documentation and support
 
 - Developer docs: <https://developer.ontomorph.com/docs>
 - API reference: <https://developer.ontomorph.com/api-reference>
@@ -230,4 +266,4 @@ import type { HealthEvent, SystemView, GrantClaims } from "@dtp/sdk";
 
 ## License
 
-UNLICENSED — © OntoMorph. Usage governed by your OntoMorph platform agreement.
+UNLICENSED. © OntoMorph. Usage is governed by your OntoMorph platform agreement.
