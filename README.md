@@ -10,6 +10,8 @@ Runs on Node.js 18+, Bun, Deno, and any modern browser or edge runtime with
 `fetch`. Fully typed, with no runtime dependencies beyond the bundled HOLON
 client.
 
+> **The [wiki](https://github.com/ontomorph-core/dtp-sdk/wiki) has the full guide:** getting started, concepts, guides, use cases, API reference, and FAQ.
+
 ```bash
 npm install @ontomorph/dtp-sdk
 # pnpm add @ontomorph/dtp-sdk
