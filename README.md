@@ -1,20 +1,20 @@
-# @dtp/sdk
+# @ontomorph/dtp-sdk
 
 The official TypeScript SDK for the DTP digital-twin platform. With one typed
 client you can connect to a patient's digital twin through a consent grant, read
 their health data by body system, watch for new events, flag findings back onto
 the twin, manage your API keys, and reach the
-[HOLON clinical-knowledge API](https://www.npmjs.com/package/@holon/client).
+[HOLON clinical-knowledge API](https://www.npmjs.com/package/@ontomorph/holon-client).
 
 Runs on Node.js 18+, Bun, Deno, and any modern browser or edge runtime with
 `fetch`. Fully typed, with no runtime dependencies beyond the bundled HOLON
 client.
 
 ```bash
-npm install @dtp/sdk
-# pnpm add @dtp/sdk
-# yarn add @dtp/sdk
-# bun add @dtp/sdk
+npm install @ontomorph/dtp-sdk
+# pnpm add @ontomorph/dtp-sdk
+# yarn add @ontomorph/dtp-sdk
+# bun add @ontomorph/dtp-sdk
 ```
 
 ## Concepts
@@ -55,7 +55,7 @@ patient's data and the knowledge to interpret it.
 ## Quick start
 
 ```ts
-import { DTP } from "@dtp/sdk";
+import { DTP } from "@ontomorph/dtp-sdk";
 
 const dtp = new DTP({ apiKey: process.env.DTP_API_KEY }); // dtp_live_… or dtp_test_…
 
@@ -195,7 +195,7 @@ await dtp.keys.revoke(created.id);
 ### `dtp.holon` (clinical knowledge)
 
 Requires `holonApiUrl` and `holonApiKey`. Returns a configured
-[`@holon/client`](https://www.npmjs.com/package/@holon/client):
+[`@ontomorph/holon-client`](https://www.npmjs.com/package/@ontomorph/holon-client):
 
 ```ts
 const results = await dtp.holon.concepts.search("atorvastatin");
@@ -204,7 +204,7 @@ const drugA = results.hits[0].conceptId;
 const interaction = await dtp.holon.interactions.check(drugA, otherDrugId);
 ```
 
-See the [`@holon/client` docs](https://www.npmjs.com/package/@holon/client) for
+See the [`@ontomorph/holon-client` docs](https://www.npmjs.com/package/@ontomorph/holon-client) for
 the full clinical-knowledge surface.
 
 ## Error handling
@@ -213,7 +213,7 @@ Every failed request throws a `DTPApiError` with a machine-readable code.
 Configuration mistakes throw `DTPConfigError`.
 
 ```ts
-import { DTP, DTPApiError, DTPConfigError, DTPErrorCode } from "@dtp/sdk";
+import { DTP, DTPApiError, DTPConfigError, DTPErrorCode } from "@ontomorph/dtp-sdk";
 
 try {
   const twin = await dtp.twins.connect(grantToken);
@@ -250,13 +250,13 @@ Every public shape is exported: `DTPConfig`, `HealthEvent`, `SystemView`,
 directly:
 
 ```ts
-import type { HealthEvent, SystemView, GrantClaims } from "@dtp/sdk";
+import type { HealthEvent, SystemView, GrantClaims } from "@ontomorph/dtp-sdk";
 ```
 
 ## Related packages
 
-- [`@holon/client`](https://www.npmjs.com/package/@holon/client): the HOLON clinical-knowledge client, re-exported here as `dtp.holon`.
-- [`@holon/types`](https://www.npmjs.com/package/@holon/types): shared HOLON types, enums, and error classes.
+- [`@ontomorph/holon-client`](https://www.npmjs.com/package/@ontomorph/holon-client): the HOLON clinical-knowledge client, re-exported here as `dtp.holon`.
+- [`@ontomorph/holon-types`](https://www.npmjs.com/package/@ontomorph/holon-types): shared HOLON types, enums, and error classes.
 
 ## Documentation and support
 
