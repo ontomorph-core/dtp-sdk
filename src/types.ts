@@ -1,17 +1,14 @@
 /**
- * Public wire types and configuration shapes for `@dtp/sdk`.
- *
- * These mirror the twin-core and identity-consent HTTP contracts exactly (see
- * `services/twin-core/src/routes/schemas.ts` and
- * `packages/dtp-types/src/api-key.ts`). They are re-declared here rather than
- * imported from `@dtp/dtp-types` so the published client stays self-contained,
- * matching the vendored `@dtp/holon-sdk` approach.
+ * Public wire types and configuration shapes for `@dtp/sdk`. They are
+ * re-declared here rather than imported from the platform's internal types
+ * package so the published client stays self-contained, matching the vendored
+ * `@dtp/holon-sdk` approach.
  */
 
-/** The public API gateway (Traefik host `api.ontomorph.com`) that path-routes to twin-core. */
+/** The public DTP API gateway (Traefik host `api.ontomorph.com`) for twin access. */
 export const DEFAULT_BASE_URL = "https://api.ontomorph.com";
 
-/** The public API gateway that path-routes to identity-consent (same host, path-routed). */
+/** The public DTP API gateway for account/key management. Same host as {@link DEFAULT_BASE_URL}. */
 export const DEFAULT_IDENTITY_URL = "https://api.ontomorph.com";
 
 /** Default per-request timeout in milliseconds. */
@@ -21,16 +18,16 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  * Configuration for a {@link DTP} client instance.
  *
  * `apiKey` is the ambient DTP credential (`dtp_...`) sent as `X-DTP-API-Key` on
- * every twin-core request. Twin access additionally requires a grant token
- * passed to `dtp.twins.connect()`. `sessionToken` (a Zitadel user JWT) is only
+ * every twin request. Twin access additionally requires a grant token passed
+ * to `dtp.twins.connect()`. `sessionToken` (a Zitadel user JWT) is only
  * needed for `dtp.keys.*`, which is user-authed, not api-key-authed.
  */
 export interface DTPConfig {
-  /** DTP API key (`dtp_...`). Sent as `X-DTP-API-Key` on twin-core requests. */
+  /** DTP API key (`dtp_...`). Sent as `X-DTP-API-Key` on twin requests. */
   apiKey: string;
-  /** twin-core base URL. Defaults to {@link DEFAULT_BASE_URL} (`https://api.ontomorph.com`). */
+  /** Twin API base URL. Defaults to {@link DEFAULT_BASE_URL} (`https://api.ontomorph.com`). */
   baseUrl?: string;
-  /** identity-consent base URL for `dtp.keys.*`. Defaults to {@link DEFAULT_IDENTITY_URL}. */
+  /** Account/key-management base URL for `dtp.keys.*`. Defaults to {@link DEFAULT_IDENTITY_URL}. */
   identityUrl?: string;
   /** Zitadel user session JWT required by `dtp.keys.*` (api-key management is user-authed). */
   sessionToken?: string;
@@ -50,12 +47,10 @@ export interface HealthEventSource {
 }
 
 /**
- * A health event as returned by twin-core.
+ * A health event as returned by the twin API.
  *
- * Mirrors `HealthEventResponseSchema` in
- * `services/twin-core/src/routes/schemas.ts`. Clinical fields such as the
- * measurement code, value, unit and body system live inside `data` (an
- * untyped `Record`), not at the top level.
+ * Clinical fields such as the measurement code, value, unit and body system
+ * live inside `data` (an untyped `Record`), not at the top level.
  */
 export interface HealthEvent {
   id: string;
@@ -75,9 +70,9 @@ export interface HealthEvent {
 /**
  * A derived per-system view of a twin.
  *
- * There is no dedicated "systems" endpoint in twin-core; this is assembled from
- * grant-scoped events (`GET /provider/twins/:id/events`) filtered by
- * `event.data.system`. See {@link SystemsClient.get}.
+ * There is no dedicated "systems" endpoint on the platform; this is assembled
+ * client-side from grant-scoped events filtered by `event.data.system`. See
+ * {@link SystemsClient.get}.
  */
 export interface SystemView {
   /** The body system this view is scoped to (e.g. `"cardiovascular"`). */
@@ -92,7 +87,7 @@ export interface SystemView {
 export interface EventFilter {
   /** Only include events whose `data.system` equals this value (applied client-side). */
   system?: string;
-  /** Max events to fetch per page (1–200). Defaults to 50 (twin-core default). */
+  /** Max events to fetch per page (1–200). Defaults to 50 (platform default). */
   limit?: number;
   /** Pagination offset. Defaults to 0. */
   offset?: number;
@@ -147,7 +142,7 @@ export interface GrantClaims {
   systems: string[] | null;
 }
 
-/** DTP api-key type. Mirrors `ApiKeyType` in `@dtp/dtp-types`. */
+/** DTP api-key type. */
 export type ApiKeyType = "personal" | "org" | "device" | "research";
 
 /** Deployment environment an api key is scoped to. */
@@ -155,8 +150,6 @@ export type ApiKeyEnvironment = "live" | "test";
 
 /**
  * A stored DTP api-key record (never includes the raw key).
- *
- * Mirrors `ApiKeyRecord` in `packages/dtp-types/src/api-key.ts`.
  */
 export interface ApiKeyRecord {
   id: string;
@@ -200,7 +193,7 @@ export interface CreateApiKeyResult {
   createdAt: string;
 }
 
-/** The `{ data: T }` envelope every twin-core / identity-consent JSON route returns. */
+/** The `{ data: T }` envelope every DTP JSON route returns. */
 export interface DataEnvelope<T> {
   data: T;
 }

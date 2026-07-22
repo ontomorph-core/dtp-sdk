@@ -1,10 +1,10 @@
 /**
  * Twin connection and per-twin operations for `@dtp/sdk`.
  *
- * A grant token (issued by identity-consent, `POST /grants/:id/token`)
- * authorizes access to exactly one twin. {@link TwinsClient.connect} decodes the
- * token to bind a {@link Twin} handle, and all twin operations map to twin-core's
- * grant-authed provider routes (`Authorization: Bearer <grantToken>`).
+ * A grant token (`POST /grants/:id/token`) authorizes access to exactly one
+ * twin. {@link TwinsClient.connect} decodes the token to bind a {@link Twin}
+ * handle, and all twin operations map to the platform's grant-authed provider
+ * routes (`Authorization: Bearer <grantToken>`).
  */
 
 import { EventsClient } from "./events.ts";
@@ -92,10 +92,9 @@ export class Twin {
    * Flag a finding onto the twin by creating a clinically-verified event tagged
    * with `system`.
    *
-   * Maps to `POST /provider/twins/:id/events`
-   * (`services/twin-core/src/routes/provider-events.ts`). The created event's
+   * Maps to `POST /provider/twins/:id/events`. The created event's
    * `data.system` is set to `system`, so the grant MUST permit that system (and
-   * the resolved event type, default `"flag"`) or twin-core responds 403
+   * the resolved event type, default `"flag"`) or the platform responds 403
    * `SCOPE_DENIED`. Any {@link HealthEvent} can be passed as `event` to forward a
    * streamed signal directly.
    */

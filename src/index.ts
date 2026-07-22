@@ -29,7 +29,7 @@ import {
 /**
  * The DTP platform client.
  *
- * Authenticates with a DTP api key (sent as `X-DTP-API-Key` on twin-core
+ * Authenticates with a DTP api key (sent as `X-DTP-API-Key` on twin
  * requests) and passes grant tokens for twin access via {@link TwinsClient.connect}.
  * `keys` requires a user session token; `holon` requires HOLON credentials.
  */
@@ -54,7 +54,7 @@ export class DTP {
       apiKey: config.apiKey,
       timeout,
     });
-    // identity-consent is user-authed: no X-DTP-API-Key, session token only.
+    // Account/key management is user-authed: no X-DTP-API-Key, session token only.
     const identityHttp = new DTPHttpClient({
       baseUrl: config.identityUrl ?? DEFAULT_IDENTITY_URL,
       timeout,

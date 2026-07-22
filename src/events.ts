@@ -1,8 +1,7 @@
 /**
  * Grant-scoped event access for a connected {@link Twin}.
  *
- * Maps to twin-core's grant-authed provider event routes
- * (`services/twin-core/src/routes/provider-events.ts`).
+ * Maps to the platform's grant-authed provider event routes.
  */
 
 import type { DTPHttpClient } from "./http.ts";
@@ -65,10 +64,10 @@ export async function fetchGrantScopedEvents(
  * Event access for a grant-connected twin.
  *
  * `list` reads the grant-scoped events endpoint. `stream` is a documented
- * polling fallback over `list` — twin-core exposes no grant-scoped event stream
- * (its only SSE endpoint, `/insights/stream`, is api-key/user-scoped insights,
- * not per-twin grant-scoped events), so real-time delivery is emulated by
- * periodic polling.
+ * polling fallback over `list` — the platform exposes no grant-scoped event
+ * stream (its only SSE endpoint, `/insights/stream`, is api-key/user-scoped
+ * insights, not per-twin grant-scoped events), so real-time delivery is
+ * emulated by periodic polling.
  */
 export class EventsClient {
   constructor(
@@ -80,9 +79,8 @@ export class EventsClient {
   /**
    * List grant-scoped events for the twin.
    *
-   * Maps to `GET /provider/twins/:id/events`
-   * (`services/twin-core/src/routes/provider-events.ts`). The `system` filter is
-   * applied client-side against each event's `data.system`.
+   * Maps to `GET /provider/twins/:id/events`. The `system` filter is applied
+   * client-side against each event's `data.system`.
    */
   async list(filter?: EventFilter): Promise<HealthEvent[]> {
     return fetchGrantScopedEvents(this.http, this.twinId, this.grantToken, filter);
@@ -92,8 +90,8 @@ export class EventsClient {
    * Invoke `callback` for each new event as it appears, via periodic polling of
    * {@link EventsClient.list}.
    *
-   * DOCUMENTED FALLBACK: there is no grant-scoped SSE endpoint in twin-core, so
-   * this polls `GET /provider/twins/:id/events` every `intervalMs` (default
+   * DOCUMENTED FALLBACK: there is no grant-scoped SSE endpoint on the platform,
+   * so this polls `GET /provider/twins/:id/events` every `intervalMs` (default
    * 5000). The first poll seeds a baseline silently; only events that appear
    * afterwards are delivered. Poll errors are swallowed so a transient failure
    * does not tear down the loop. Call `stop()` on the returned handle to end it.

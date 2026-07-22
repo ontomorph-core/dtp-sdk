@@ -4,7 +4,7 @@
  * Mirrors the `@dtp/holon-sdk` transport style: uses `globalThis.fetch`
  * directly (this is a standalone client library, so the repo's
  * `@dtp/http-client` rule does not apply) and throws {@link DTPApiError} on any
- * non-2xx response, decoding twin-core's `{ error: { code, message } }`
+ * non-2xx response, decoding the platform's `{ error: { code, message } }`
  * envelope.
  */
 
@@ -46,7 +46,7 @@ export class DTPApiError extends Error {
   }
 }
 
-/** Shape of twin-core / identity-consent error response bodies. */
+/** Shape of a DTP error response body. */
 interface ErrorEnvelope {
   error?: { code?: string; message?: string; details?: unknown };
 }

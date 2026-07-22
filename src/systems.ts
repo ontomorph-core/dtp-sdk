@@ -1,10 +1,10 @@
 /**
  * Per-system view for a connected {@link Twin}.
  *
- * IMPORTANT — honest mapping: twin-core exposes NO dedicated "systems" endpoint.
+ * IMPORTANT — honest mapping: the platform exposes NO dedicated "systems" endpoint.
  * A system view is derived here from the grant-scoped events endpoint
- * (`GET /provider/twins/:id/events`, `services/twin-core/src/routes/provider-events.ts`)
- * filtered by each event's `data.system`. (The per-structure clinical snapshot
+ * (`GET /provider/twins/:id/events`) filtered by each event's `data.system`.
+ * (The per-structure clinical snapshot
  * that does exist — `GET /provider/twins/:id/inspector/:fmaCode/snapshot` — is
  * keyed by anatomical FMA structure code, not by body system name, so it is not
  * a match for `systems.get("cardiovascular")`.)
