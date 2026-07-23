@@ -1,9 +1,8 @@
 /**
- * Thin `fetch` transport for `@dtp/sdk` with a request timeout and typed errors.
+ * Thin `fetch` transport for `@ontomorph/dtp-sdk` with a request timeout and typed errors.
  *
- * Mirrors the `@dtp/holon-sdk` transport style: uses `globalThis.fetch`
- * directly (this is a standalone client library, so the repo's
- * `@dtp/http-client` rule does not apply) and throws {@link DTPApiError} on any
+ * Uses `globalThis.fetch` directly (this is a standalone client library with no
+ * dependency on any internal HTTP wrapper) and throws {@link DTPApiError} on any
  * non-2xx response, decoding the platform's `{ error: { code, message } }`
  * envelope.
  */

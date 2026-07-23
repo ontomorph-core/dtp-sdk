@@ -1,5 +1,5 @@
 /**
- * DTP api-key management for `@dtp/sdk`.
+ * DTP api-key management for `@ontomorph/dtp-sdk`.
  *
  * AUTH NOTE — these routes are USER-authed, not api-key-authed. A `dtp_...` api
  * key cannot manage keys (that would be a bootstrap loop), so every method here

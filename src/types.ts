@@ -1,8 +1,7 @@
 /**
- * Public wire types and configuration shapes for `@dtp/sdk`. They are
+ * Public wire types and configuration shapes for `@ontomorph/dtp-sdk`. They are
  * re-declared here rather than imported from the platform's internal types
- * package so the published client stays self-contained, matching the vendored
- * `@dtp/holon-sdk` approach.
+ * package so the published client stays self-contained.
  */
 
 /** The public DTP API gateway (Traefik host `api.ontomorph.com`) for twin access. */
@@ -10,6 +9,9 @@ export const DEFAULT_BASE_URL = "https://api.ontomorph.com";
 
 /** The public DTP API gateway for account/key management. Same host as {@link DEFAULT_BASE_URL}. */
 export const DEFAULT_IDENTITY_URL = "https://api.ontomorph.com";
+
+/** The public sandbox service (Traefik host `sandbox-api.ontomorph.com`) for demo grant issuance. */
+export const DEFAULT_SANDBOX_URL = "https://sandbox-api.ontomorph.com";
 
 /** Default per-request timeout in milliseconds. */
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -19,17 +21,23 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  *
  * `apiKey` is the ambient DTP credential (`dtp_...`) sent as `X-DTP-API-Key` on
  * every twin request. Twin access additionally requires a grant token passed
- * to `dtp.twins.connect()`. `sessionToken` (a Zitadel user JWT) is only
- * needed for `dtp.keys.*`, which is user-authed, not api-key-authed.
+ * to `dtp.twins.connect()`. `sessionToken` (a Zitadel user JWT) is only needed
+ * for `dtp.keys.*`, which is user-authed, not api-key-authed.
  */
 export interface DTPConfig {
   /** DTP API key (`dtp_...`). Sent as `X-DTP-API-Key` on twin requests. */
   apiKey: string;
-  /** Twin API base URL. Defaults to {@link DEFAULT_BASE_URL} (`https://api.ontomorph.com`). */
+  /**
+   * Twin API base URL. Defaults to {@link DEFAULT_BASE_URL} (`https://api.ontomorph.com`)
+   * for a `dtp_live_...` key, or {@link DEFAULT_SANDBOX_URL} for a `dtp_test_...` key.
+   * Set explicitly to override this inference.
+   */
   baseUrl?: string;
   /** Account/key-management base URL for `dtp.keys.*`. Defaults to {@link DEFAULT_IDENTITY_URL}. */
   identityUrl?: string;
-  /** Zitadel user session JWT required by `dtp.keys.*` (api-key management is user-authed). */
+  /** Sandbox service base URL for `dtp.sandbox.*`. Defaults to {@link DEFAULT_SANDBOX_URL}. */
+  sandboxUrl?: string;
+  /** Zitadel user session JWT required by `dtp.keys.*` and `dtp.sandbox.*` (both are user-authed). */
   sessionToken?: string;
   /** HOLON knowledge API base URL. Required to use `dtp.holon`. */
   holonApiUrl?: string;
@@ -87,7 +95,7 @@ export interface SystemView {
 export interface EventFilter {
   /** Only include events whose `data.system` equals this value (applied client-side). */
   system?: string;
-  /** Max events to fetch per page (1–200). Defaults to 50 (platform default). */
+  /** Max events to fetch per page (1 to 200). Defaults to 50 (platform default). */
   limit?: number;
   /** Pagination offset. Defaults to 0. */
   offset?: number;
@@ -107,10 +115,10 @@ export interface StreamHandle {
 
 /**
  * Input to {@link Twin.flag}. Any {@link HealthEvent} satisfies this shape, so a
- * streamed event can be forwarded directly. `eventType` defaults to `"flag"`.
+ * streamed event can be forwarded directly. `eventType` defaults to `"clinical_note"`.
  */
 export interface FlagInput {
-  /** Event type for the created flag. Must be permitted by the grant. Defaults to `"flag"`. */
+  /** Event type for the created flag. Must be permitted by the grant. Defaults to `"clinical_note"`. */
   eventType?: string;
   /** ISO-8601 occurrence time. Defaults to now. */
   occurredAt?: string;
@@ -166,6 +174,49 @@ export interface ApiKeyRecord {
   createdAt: string;
 }
 
+/**
+ * What-if trajectory simulation model. All seven run against a real twin
+ * (`dtp.twins.connect()` against `api.ontomorph.com`); the sandbox host
+ * (`sandbox-api.ontomorph.com`) only implements `ldl_trajectory` and
+ * `hba1c_trajectory` — the two models the seeded demo cohort has lab data for.
+ */
+export type SimulationType =
+  | "ldl_trajectory"
+  | "bp_trajectory"
+  | "hba1c_trajectory"
+  | "weight_bmi"
+  | "cv_risk"
+  | "pk_one_compartment"
+  | "aging";
+
+/**
+ * Result of {@link Twin.simulate}. `narration` and `animation` are null on the
+ * sandbox host (no AI narration or 3D asset pipeline there) and populated
+ * against a real twin.
+ */
+export interface SimulationResult {
+  type: SimulationType;
+  scalarOutputs: Record<string, unknown>;
+  disclaimer: string;
+  narration: { narrative: string; keyFindings: string[]; caveats: string[] } | null;
+  animation: unknown | null;
+}
+
+/**
+ * A freshly-minted sandbox demo grant token bound to one synthetic sandbox
+ * twin. Mirrors the sandbox service's `SandboxDemoGrantSchema`.
+ */
+export interface SandboxDemoGrant {
+  /** Scoped grant JWT — pass to `dtp.twins.connect(grantToken)`. */
+  grantToken: string;
+  /** The synthetic twin this token grants read/write access to. */
+  twinId: string;
+  /** The underlying standing sandbox grant row id. */
+  grantId: string;
+  /** Token lifetime in seconds. */
+  expiresIn: number;
+}
+
 /** Request body for {@link KeysClient.create}. Mirrors `CreateApiKeyRequest`. */
 export interface CreateApiKeyInput {
   name: string;
@@ -176,9 +227,7 @@ export interface CreateApiKeyInput {
 }
 
 /**
- * Response from {@link KeysClient.create} — the raw `key` is shown exactly once.
- *
- * Mirrors `CreateApiKeyResponse` in `packages/dtp-types/src/api-key.ts`.
+ * Response from {@link KeysClient.create}, where the raw `key` is shown exactly once.
  */
 export interface CreateApiKeyResult {
   id: string;

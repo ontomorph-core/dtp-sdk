@@ -1,9 +1,9 @@
 /**
- * `@dtp/sdk` — the official TypeScript client for the DTP digital-twin platform.
+ * `@ontomorph/dtp-sdk`: the official TypeScript client for the DTP digital-twin platform.
  *
  * @example
  * ```ts
- * import { DTP } from "@dtp/sdk";
+ * import { DTP } from "@ontomorph/dtp-sdk";
  *
  * const dtp = new DTP({ apiKey: "dtp_live_..." });
  * const twin = await dtp.twins.connect(grantToken);
@@ -15,13 +15,15 @@
  * ```
  */
 
-import { createHolonClient, type HolonClient } from "@dtp/holon-sdk";
+import { createHolonClient, type HolonClient } from "./holon.ts";
 import { DTPConfigError, DTPHttpClient } from "./http.ts";
 import { KeysClient } from "./keys.ts";
+import { SandboxClient } from "./sandbox.ts";
 import { TwinsClient } from "./twins.ts";
 import {
   DEFAULT_BASE_URL,
   DEFAULT_IDENTITY_URL,
+  DEFAULT_SANDBOX_URL,
   DEFAULT_TIMEOUT_MS,
   type DTPConfig,
 } from "./types.ts";
@@ -38,6 +40,8 @@ export class DTP {
   readonly twins: TwinsClient;
   /** Manage the authenticated user's DTP api keys (requires `sessionToken`). */
   readonly keys: KeysClient;
+  /** Mint sandbox demo grant tokens (requires `sessionToken`). */
+  readonly sandbox: SandboxClient;
 
   private readonly config: DTPConfig;
   private holonClient: HolonClient | undefined;
@@ -49,8 +53,13 @@ export class DTP {
     this.config = config;
     const timeout = config.timeout ?? DEFAULT_TIMEOUT_MS;
 
+    // A dtp_test_* key talks to the sandbox by default; dtp_live_* (or any other
+    // prefix) talks to prod. Explicit `baseUrl` always wins over this inference.
+    const inferredBaseUrl = config.apiKey.startsWith("dtp_test_")
+      ? DEFAULT_SANDBOX_URL
+      : DEFAULT_BASE_URL;
     const twinHttp = new DTPHttpClient({
-      baseUrl: config.baseUrl ?? DEFAULT_BASE_URL,
+      baseUrl: config.baseUrl ?? inferredBaseUrl,
       apiKey: config.apiKey,
       timeout,
     });
@@ -59,16 +68,22 @@ export class DTP {
       baseUrl: config.identityUrl ?? DEFAULT_IDENTITY_URL,
       timeout,
     });
+    // Sandbox grant issuance is user-authed too: no X-DTP-API-Key, session token only.
+    const sandboxHttp = new DTPHttpClient({
+      baseUrl: config.sandboxUrl ?? DEFAULT_SANDBOX_URL,
+      timeout,
+    });
 
     this.twins = new TwinsClient(twinHttp);
     this.keys = new KeysClient(identityHttp, config.sessionToken);
+    this.sandbox = new SandboxClient(sandboxHttp, config.sessionToken);
   }
 
   /**
    * The configured HOLON clinical-knowledge client (concepts, drug interactions,
    * cross-vocabulary mappings, reference ranges, phenotype similarity).
    *
-   * Re-exports `@dtp/holon-sdk` configured with `holonApiUrl`/`holonApiKey`.
+   * The inlined HOLON client, configured with `holonApiUrl`/`holonApiKey`.
    * Throws {@link DTPConfigError} if those were not provided.
    */
   get holon(): HolonClient {
@@ -88,10 +103,11 @@ export class DTP {
   }
 }
 
-export { createHolonClient, type HolonClient } from "@dtp/holon-sdk";
 export { diffNewEvents, EventsClient, filterBySystem } from "./events.ts";
+export { createHolonClient, type HolonClient } from "./holon.ts";
 export { DTPApiError, DTPConfigError, DTPErrorCode } from "./http.ts";
 export { KeysClient } from "./keys.ts";
+export { SandboxClient } from "./sandbox.ts";
 export { SystemsClient } from "./systems.ts";
 export { decodeGrantToken, Twin, TwinsClient } from "./twins.ts";
 export {
@@ -103,6 +119,7 @@ export {
   type DataEnvelope,
   DEFAULT_BASE_URL,
   DEFAULT_IDENTITY_URL,
+  DEFAULT_SANDBOX_URL,
   DEFAULT_TIMEOUT_MS,
   type DTPConfig,
   type EventFilter,
@@ -110,6 +127,9 @@ export {
   type GrantClaims,
   type HealthEvent,
   type HealthEventSource,
+  type SandboxDemoGrant,
+  type SimulationResult,
+  type SimulationType,
   type StreamHandle,
   type StreamOptions,
   type SystemView,

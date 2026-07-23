@@ -94,10 +94,12 @@ scoped to the body systems and event types they approved.
 
 Get an API key from the [developer dashboard](https://developer.ontomorph.com/dashboard/keys).
 
-Two features need extra credentials, supplied in the same constructor:
+Three features need extra credentials, supplied in the same constructor:
 
 - `dtp.keys` (manage your own API keys) is user-authed, so it needs a
   `sessionToken` (a Zitadel user JWT), not just the API key.
+- `dtp.sandbox` (mint synthetic demo grant tokens) is also user-authed, same
+  `sessionToken` requirement.
 - `dtp.holon` (clinical knowledge) needs `holonApiUrl` and `holonApiKey`.
 
 ## Configuration
@@ -107,7 +109,8 @@ new DTP({
   apiKey:       "dtp_live_…",  // required, X-DTP-API-Key on twin requests
   baseUrl:      "https://api.ontomorph.com",  // twin-core (default shown)
   identityUrl:  "https://api.ontomorph.com",  // identity-consent, for dtp.keys (default shown)
-  sessionToken: "<zitadel user jwt>",          // required only for dtp.keys.*
+  sandboxUrl:   "https://sandbox-api.ontomorph.com", // sandbox service, for dtp.sandbox (default shown)
+  sessionToken: "<zitadel user jwt>",          // required only for dtp.keys.* and dtp.sandbox.*
   holonApiUrl:  "https://holon.ontomorph.com", // required only for dtp.holon
   holonApiKey:  "holon_…",                      // required only for dtp.holon
   timeout:      30_000,                          // per-request ms (default)
@@ -176,7 +179,41 @@ await twin.flag("cardiovascular", {
 });
 ```
 
-The grant must permit the flag's `eventType`, which defaults to `"flag"`.
+The grant must permit the flag's `eventType`, which defaults to `"clinical_note"`.
+
+### `twin.simulate`
+
+Run a what-if trajectory simulation. Baseline values (e.g. starting LDL for
+`"ldl_trajectory"`) auto-derive from the twin's own recent lab results unless
+you pass them in `params`:
+
+```ts
+const result = await twin.simulate("ldl_trajectory", {});
+console.log(result.scalarOutputs, result.disclaimer);
+```
+
+Against a real twin this polls until the queued job completes (up to 2
+minutes) and returns AI `narration` plus a 3D `animation`; against the
+sandbox host it resolves immediately with `narration`/`animation` both
+`null`. Only `"ldl_trajectory"` and `"hba1c_trajectory"` are implemented on
+the sandbox host. Throws `DTPApiError` (code `TIMEOUT` or the job's real
+failure reason) if the run doesn't succeed.
+
+### `dtp.sandbox` (try it with synthetic data)
+
+Requires `sessionToken` in the constructor. Mints fresh grant tokens for a
+standing cohort of synthetic demo twins, physically isolated from real
+patient data — pair with a `dtp_test_…` API key to build against the platform
+before you have a real patient's grant.
+
+```ts
+const [grant] = await dtp.sandbox.grants();
+const twin = await dtp.twins.connect(grant.grantToken);
+const events = await twin.events.list();
+```
+
+Each token is valid for `grant.expiresIn` seconds; call `dtp.sandbox.grants()`
+again to mint a fresh one once it expires.
 
 ### `dtp.keys` (manage your API keys)
 
@@ -248,8 +285,8 @@ to you:
 
 Every public shape is exported: `DTPConfig`, `HealthEvent`, `SystemView`,
 `EventFilter`, `StreamOptions`, `StreamHandle`, `FlagInput`, `GrantClaims`,
-`ApiKeyRecord`, `CreateApiKeyInput`, `CreateApiKeyResult`, and more. Import them
-directly:
+`ApiKeyRecord`, `CreateApiKeyInput`, `CreateApiKeyResult`, `SandboxDemoGrant`,
+and more. Import them directly:
 
 ```ts
 import type { HealthEvent, SystemView, GrantClaims } from "@ontomorph/dtp-sdk";

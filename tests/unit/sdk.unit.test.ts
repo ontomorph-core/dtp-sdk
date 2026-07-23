@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import {
+  DEFAULT_BASE_URL,
+  DEFAULT_SANDBOX_URL,
   DTP,
   DTPApiError,
   DTPConfigError,
@@ -11,12 +13,23 @@ import {
 } from "../../src/index.ts";
 
 const API_KEY = "dtp_live_testkey0000000000000000";
+const TEST_API_KEY = "dtp_test_testkey0000000000000000";
 const SESSION = "session.jwt.token";
 
 const realFetch = globalThis.fetch;
+const realSetTimeout = globalThis.setTimeout;
 afterEach(() => {
   globalThis.fetch = realFetch;
+  globalThis.setTimeout = realSetTimeout;
 });
+
+/** Fire every `setTimeout` callback immediately, so poll-loop tests don't wait on real delays. */
+function stubImmediateTimers(): void {
+  globalThis.setTimeout = ((fn: () => void) => {
+    fn();
+    return 0 as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+}
 
 /** Base64url-encode a JSON payload (no padding), for building fake grant JWTs. */
 function base64UrlJson(payload: Record<string, unknown>): string {
@@ -108,6 +121,38 @@ describe("DTP constructor", () => {
   });
 });
 
+describe("baseUrl inference from api key prefix", () => {
+  test("dtp_test_ key defaults twin requests to the sandbox host", async () => {
+    const { calls } = stubFetch(() => dataResponse([]));
+    const dtp = new DTP({ apiKey: TEST_API_KEY });
+    const twin = dtp.twins.connect(GRANT_TOKEN);
+
+    await twin.events.list();
+
+    expect(calls[0]?.url.startsWith(DEFAULT_SANDBOX_URL)).toBe(true);
+  });
+
+  test("dtp_live_ key defaults twin requests to the prod host", async () => {
+    const { calls } = stubFetch(() => dataResponse([]));
+    const dtp = new DTP({ apiKey: API_KEY });
+    const twin = dtp.twins.connect(GRANT_TOKEN);
+
+    await twin.events.list();
+
+    expect(calls[0]?.url.startsWith(DEFAULT_BASE_URL)).toBe(true);
+  });
+
+  test("explicit baseUrl overrides the dtp_test_ inference", async () => {
+    const { calls } = stubFetch(() => dataResponse([]));
+    const dtp = new DTP({ apiKey: TEST_API_KEY, baseUrl: "https://custom.test" });
+    const twin = dtp.twins.connect(GRANT_TOKEN);
+
+    await twin.events.list();
+
+    expect(calls[0]?.url).toBe(`https://custom.test/provider/twins/${TWIN_ID}/events`);
+  });
+});
+
 describe("Twin via grant token", () => {
   test("connect binds the twin id from the grant", () => {
     const dtp = new DTP({ apiKey: API_KEY });
@@ -170,7 +215,7 @@ describe("Twin via grant token", () => {
       eventType: string;
       data: Record<string, unknown>;
     };
-    expect(body.eventType).toBe("flag");
+    expect(body.eventType).toBe("clinical_note");
     expect(body.data.system).toBe("vascular");
     expect(body.data.flaggedCode).toBe("LDL");
     expect(body.data.flaggedValue).toBe(165);
@@ -195,6 +240,114 @@ describe("Twin via grant token", () => {
     expect(err.code).toBe("SCOPE_DENIED");
     expect(err.details.status).toBe(403);
     expect(err.message).toContain("system denied");
+  });
+});
+
+describe("Twin.simulate()", () => {
+  test("resolves immediately when the POST response is already completed (sandbox host)", async () => {
+    const { calls } = stubFetch(() =>
+      dataResponse({
+        jobId: "sim-1",
+        status: "completed",
+        type: "ldl_trajectory",
+        scalar_outputs: { ldl: 120 },
+        disclaimer: "not medical advice",
+        narration: null,
+      })
+    );
+    const dtp = new DTP({ apiKey: API_KEY, baseUrl: "https://api.test" });
+    const twin = dtp.twins.connect(GRANT_TOKEN);
+
+    const result = await twin.simulate("ldl_trajectory", {});
+
+    expect(result.scalarOutputs).toEqual({ ldl: 120 });
+    expect(result.disclaimer).toBe("not medical advice");
+    expect(result.animation).toBeNull();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(`https://api.test/provider/twins/${TWIN_ID}/simulations`);
+  });
+
+  test("polls a queued real-twin job until it completes, then fetches the animation", async () => {
+    stubImmediateTimers();
+    const { calls } = stubFetch((_call, index) => {
+      if (index === 0) {
+        return dataResponse({ jobId: "sim-2", status: "queued" });
+      }
+      if (index === 1) {
+        return dataResponse({
+          jobId: "sim-2",
+          status: "running",
+          scalar_outputs: null,
+          error: null,
+        });
+      }
+      if (index === 2) {
+        return dataResponse({
+          jobId: "sim-2",
+          status: "completed",
+          scalar_outputs: { a: 1 },
+          disclaimer: "d",
+          narration: { narrative: "n", key_findings: ["k"], caveats: ["c"] },
+        });
+      }
+      return dataResponse({ animation: { frames: [] } });
+    });
+    const dtp = new DTP({ apiKey: API_KEY, baseUrl: "https://api.test" });
+    const twin = dtp.twins.connect(GRANT_TOKEN);
+
+    const result = await twin.simulate("ldl_trajectory", {});
+
+    expect(result.scalarOutputs).toEqual({ a: 1 });
+    expect(result.narration).toEqual({ narrative: "n", keyFindings: ["k"], caveats: ["c"] });
+    expect(result.animation).toEqual({ frames: [] });
+    expect(calls).toHaveLength(4);
+    expect(calls[1]?.url).toBe(
+      `https://api.test/provider/twins/${TWIN_ID}/simulations/sim-2/result`
+    );
+    expect(calls[3]?.url).toBe(
+      `https://api.test/provider/twins/${TWIN_ID}/simulations/sim-2/animation`
+    );
+  });
+
+  test("throws with the real failure reason as soon as a poll reports the job failed", async () => {
+    stubImmediateTimers();
+    stubFetch((_call, index) =>
+      index === 0
+        ? dataResponse({ jobId: "sim-3", status: "queued" })
+        : dataResponse({
+            jobId: "sim-3",
+            status: "failed",
+            scalar_outputs: null,
+            error: "model diverged",
+          })
+    );
+    const dtp = new DTP({ apiKey: API_KEY, baseUrl: "https://api.test" });
+    const twin = dtp.twins.connect(GRANT_TOKEN);
+
+    const err = (await twin.simulate("ldl_trajectory", {}).catch((e) => e)) as DTPApiError;
+
+    expect(err).toBeInstanceOf(DTPApiError);
+    expect(err.message).toContain("model diverged");
+    expect(err.message).toContain("sim-3");
+  });
+
+  test("throws a TIMEOUT DTPApiError once the poll deadline passes without a result", async () => {
+    stubFetch(() => dataResponse({ jobId: "sim-4", status: "queued" }));
+    const realDateNow = Date.now;
+    let call = 0;
+    Date.now = () => (call++ === 0 ? 0 : Number.MAX_SAFE_INTEGER);
+    try {
+      const dtp = new DTP({ apiKey: API_KEY, baseUrl: "https://api.test" });
+      const twin = dtp.twins.connect(GRANT_TOKEN);
+
+      const err = (await twin.simulate("ldl_trajectory", {}).catch((e) => e)) as DTPApiError;
+
+      expect(err).toBeInstanceOf(DTPApiError);
+      expect(err.code).toBe("TIMEOUT");
+      expect(err.message).toContain("sim-4");
+    } finally {
+      Date.now = realDateNow;
+    }
   });
 });
 
@@ -275,6 +428,37 @@ describe("dtp.keys (user-authed)", () => {
     const call = calls[0] as StubCall;
     expect(call.init?.method).toBe("POST");
     expect(call.url).toBe("https://id.test/api-keys");
+  });
+});
+
+describe("dtp.sandbox (user-authed)", () => {
+  test("throws DTPConfigError when no sessionToken is configured", async () => {
+    const dtp = new DTP({ apiKey: API_KEY });
+    const err = (await dtp.sandbox.grants().catch((e) => e)) as DTPConfigError;
+    expect(err).toBeInstanceOf(DTPConfigError);
+  });
+
+  test("grants sends the session bearer and NO api-key header to the sandbox service", async () => {
+    const { calls } = stubFetch(() =>
+      dataResponse([
+        { grantToken: "g1", twinId: TWIN_ID, grantId: "grant-1", expiresIn: 2_592_000 },
+      ])
+    );
+    const dtp = new DTP({
+      apiKey: API_KEY,
+      sandboxUrl: "https://sandbox.test",
+      sessionToken: SESSION,
+    });
+
+    const grants = await dtp.sandbox.grants();
+
+    expect(grants).toHaveLength(1);
+    expect(grants[0]?.expiresIn).toBe(2_592_000);
+    const call = calls[0] as StubCall;
+    expect(call.url).toBe("https://sandbox.test/grants");
+    const headers = headersOf(call);
+    expect(headers.Authorization).toBe(`Bearer ${SESSION}`);
+    expect(headers["X-DTP-API-Key"]).toBeUndefined();
   });
 });
 
